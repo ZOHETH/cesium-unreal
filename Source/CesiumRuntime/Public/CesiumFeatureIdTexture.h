@@ -1,12 +1,13 @@
-// Copyright 2020-2023 CesiumGS, Inc. and Contributors
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
 
 #pragma once
 
-#include "CesiumGltf/AccessorView.h"
-#include "CesiumGltf/FeatureIdTextureView.h"
 #include "Containers/UnrealString.h"
-#include "GltfAccessors.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
+
+#include <CesiumGltf/AccessorUtility.h>
+#include <CesiumGltf/FeatureIdTextureView.h>
+
 #include "CesiumFeatureIdTexture.generated.h"
 
 namespace CesiumGltf {
@@ -75,7 +76,7 @@ public:
 private:
   ECesiumFeatureIdTextureStatus _status;
   CesiumGltf::FeatureIdTextureView _featureIdTextureView;
-  CesiumTexCoordAccessorType _texCoordAccessor;
+  CesiumGltf::TexCoordAccessorType _texCoordAccessor;
   int64 _textureCoordinateSetIndex;
 
   // For backwards compatibility.
@@ -125,6 +126,10 @@ public:
    * This is the index N corresponding to the "TEXCOORD_N" attribute on the glTF
    * primitive that samples this texture.
    *
+   * If the texture contains the `KHR_texture_transform` extension, the original
+   * texture coordinate set index can be overridden by the one provided by the
+   * extension.
+   *
    * If the feature ID texture is invalid, this returns -1.
    */
   UFUNCTION(
@@ -165,7 +170,7 @@ public:
    * retrieve the per-pixel metadata.
    *
    * This assumes the given texture coordinates are from the appropriate
-   * texture coordinate set as indicated by GetTextureCoordinateIndex. If the
+   * texture coordinate set as indicated by GetTextureCoordinateSetIndex. If the
    * feature ID texture is invalid, this returns -1.
    */
   UFUNCTION(

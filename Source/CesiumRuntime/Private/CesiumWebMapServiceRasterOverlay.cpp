@@ -1,4 +1,4 @@
-// Copyright 2020-2021 CesiumGS, Inc. and Contributors
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
 
 #include "CesiumWebMapServiceRasterOverlay.h"
 #include "Algo/Transform.h"
@@ -8,6 +8,10 @@
 std::unique_ptr<CesiumRasterOverlays::RasterOverlay>
 UCesiumWebMapServiceRasterOverlay::CreateOverlay(
     const CesiumRasterOverlays::RasterOverlayOptions& options) {
+  if (this->BaseUrl.IsEmpty()) {
+    // Don't create an overlay with an empty base URL.
+    return nullptr;
+  }
 
   CesiumRasterOverlays::WebMapServiceRasterOverlayOptions wmsOptions;
   if (MaximumLevel > MinimumLevel) {

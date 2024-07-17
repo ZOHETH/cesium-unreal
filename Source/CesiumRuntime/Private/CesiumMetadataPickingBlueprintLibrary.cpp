@@ -1,4 +1,4 @@
-// Copyright 2020-2023 CesiumGS, Inc. and Contributors
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
 
 #include "CesiumMetadataPickingBlueprintLibrary.h"
 #include "CesiumGltfComponent.h"
@@ -23,8 +23,8 @@ UCesiumMetadataPickingBlueprintLibrary::GetMetadataValuesForFace(
   if (!IsValid(pModel)) {
     return TMap<FString, FCesiumMetadataValue>();
   }
-
-  const FCesiumPrimitiveFeatures& features = pGltfComponent->Features;
+  const CesiumPrimitiveData& primData = pGltfComponent->getPrimitiveData();
+  const FCesiumPrimitiveFeatures& features = primData.Features;
   const TArray<FCesiumFeatureIdSet>& featureIDSets =
       UCesiumPrimitiveFeaturesBlueprintLibrary::GetFeatureIDSets(features);
 
@@ -89,31 +89,34 @@ bool UCesiumMetadataPickingBlueprintLibrary::FindUVFromHit(
     return false;
   }
 
-  if (pGltfComponent->PositionAccessor.status() !=
+  const CesiumPrimitiveData& primData = pGltfComponent->getPrimitiveData();
+
+  if (primData.PositionAccessor.status() !=
       CesiumGltf::AccessorViewStatus::Valid) {
     return false;
   }
 
-  auto accessorIt =
-      pGltfComponent->TexCoordAccessorMap.find(GltfTexCoordSetIndex);
-  if (accessorIt == pGltfComponent->TexCoordAccessorMap.end()) {
+  auto accessorIt = primData.TexCoordAccessorMap.find(GltfTexCoordSetIndex);
+  if (accessorIt == primData.TexCoordAccessorMap.end()) {
     return false;
   }
 
-  std::array<int64, 3> VertexIndices = std::visit(
-      CesiumFaceVertexIndicesFromAccessor{
+  auto VertexIndices = std::visit(
+      CesiumGltf::IndicesForFaceFromAccessor{
           Hit.FaceIndex,
-          pGltfComponent->PositionAccessor.size()},
-      pGltfComponent->IndexAccessor);
+          primData.PositionAccessor.size(),
+          primData.pMeshPrimitive->mode},
+      primData.IndexAccessor);
 
   // Adapted from UBodySetup::CalcUVAtLocation. Compute the barycentric
   // coordinates of the point relative to the face, then use those to
   // interpolate the UVs.
   std::array<FVector2D, 3> UVs;
-  const CesiumTexCoordAccessorType& accessor = accessorIt->second;
+  const CesiumGltf::TexCoordAccessorType& accessor = accessorIt->second;
   for (size_t i = 0; i < UVs.size(); i++) {
-    auto maybeTexCoord =
-        std::visit(CesiumTexCoordFromAccessor{VertexIndices[i]}, accessor);
+    auto maybeTexCoord = std::visit(
+        CesiumGltf::TexCoordFromAccessor{VertexIndices[i]},
+        accessor);
     if (!maybeTexCoord) {
       return false;
     }
@@ -123,7 +126,7 @@ bool UCesiumMetadataPickingBlueprintLibrary::FindUVFromHit(
 
   std::array<FVector, 3> Positions;
   for (size_t i = 0; i < Positions.size(); i++) {
-    auto& Position = pGltfComponent->PositionAccessor[VertexIndices[i]];
+    auto& Position = primData.PositionAccessor[VertexIndices[i]];
     // The Y-component of glTF positions must be inverted
     Positions[i] = FVector(Position[0], -Position[1], Position[2]);
   }
@@ -159,7 +162,8 @@ UCesiumMetadataPickingBlueprintLibrary::GetPropertyTableValuesFromHit(
     return TMap<FString, FCesiumMetadataValue>();
   }
 
-  const FCesiumPrimitiveFeatures& features = pGltfComponent->Features;
+  const CesiumPrimitiveData& primData = pGltfComponent->getPrimitiveData();
+  const FCesiumPrimitiveFeatures& features = primData.Features;
   const TArray<FCesiumFeatureIdSet>& featureIDSets =
       UCesiumPrimitiveFeaturesBlueprintLibrary::GetFeatureIDSets(features);
 

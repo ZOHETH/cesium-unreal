@@ -1,4 +1,4 @@
-// Copyright 2020-2023 CesiumGS, Inc. and Contributors
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
 
 #pragma once
 
@@ -52,6 +52,16 @@ struct CESIUMRUNTIME_API FCesiumFeatureIdSetDescription {
    */
   UPROPERTY(EditAnywhere, Category = "Cesium")
   ECesiumFeatureIdSetType Type = ECesiumFeatureIdSetType::None;
+
+  /**
+   * Whether this feature ID set contains a KHR_texture_transform glTF
+   * extension. Only applicable if the feature ID set is a feature ID texture.
+   */
+  UPROPERTY(
+      EditAnywhere,
+      Category = "Cesium",
+      Meta = (EditCondition = "Type == ECesiumFeatureIdSetType::Texture"))
+  bool bHasKhrTextureTransform = false;
 
   /**
    * The name of the property table that this feature ID set corresponds to.
@@ -185,6 +195,13 @@ struct CESIUMRUNTIME_API FCesiumPropertyTexturePropertyDescription {
    */
   UPROPERTY(EditAnywhere, Category = "Cesium")
   FCesiumMetadataPropertyDetails PropertyDetails;
+
+  /**
+   * Whether this property texture property contains a KHR_texture_transform
+   * glTF extension.
+   */
+  UPROPERTY(EditAnywhere, Category = "Cesium")
+  bool bHasKhrTextureTransform = false;
 };
 
 /**

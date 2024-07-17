@@ -1,9 +1,8 @@
-// Copyright 2020-2023 CesiumGS, Inc. and Contributors
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 
 #include "CesiumMetadataPrimitive.h"
-#include "CesiumGltf/ExtensionMeshPrimitiveExtFeatureMetadata.h"
 #include "CesiumGltf/Model.h"
 
 FCesiumMetadataPrimitive::FCesiumMetadataPrimitive(

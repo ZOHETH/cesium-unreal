@@ -1,4 +1,4 @@
-// Copyright 2020-2021 CesiumGS, Inc. and Contributors
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
 
 #include "CesiumActors.h"
 #include "CesiumRuntime.h"
@@ -31,7 +31,7 @@ glm::dvec4 CesiumActors::getWorldOrigin4D(const AActor* actor) {
 bool CesiumActors::shouldValidateFlags(UObject* object) {
 #if WITH_EDITOR
   // Only fixup flags in the editor, when not in play mode
-  if (GEditor->IsPlaySessionInProgress())
+  if (!IsValid(GEditor) || GEditor->IsPlaySessionInProgress())
     return false;
 
   // In addition, don't fix when loading from an asset file, which sets the

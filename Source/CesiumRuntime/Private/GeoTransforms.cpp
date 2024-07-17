@@ -1,4 +1,4 @@
-// Copyright 2020-2021 CesiumGS, Inc. and Contributors
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
 
 #include "GeoTransforms.h"
 
@@ -34,7 +34,8 @@ GeoTransforms::GeoTransforms()
           LocalDirection::East,
           LocalDirection::North,
           LocalDirection::Up,
-          1.0),
+          1.0,
+          CesiumGeospatial::Ellipsoid::WGS84),
       _ellipsoid(CesiumGeospatial::Ellipsoid::WGS84),
       _center(0.0),
       _scale(1.0),
@@ -54,7 +55,8 @@ GeoTransforms::GeoTransforms(
           LocalDirection::East,
           LocalDirection::North,
           LocalDirection::Up,
-          1.0),
+          1.0,
+          ellipsoid),
       _ellipsoid(ellipsoid),
       _center(center),
       _scale(scale),

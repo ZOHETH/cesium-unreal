@@ -1,11 +1,9 @@
-// Copyright 2020-2021 CesiumGS, Inc. and Contributors
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
 
 #pragma once
 
+#include "CesiumCommon.h"
 #include "CesiumEncodedFeaturesMetadata.h"
-#include "CesiumGltf/Material.h"
-#include "CesiumGltf/MeshPrimitive.h"
-#include "CesiumGltf/Model.h"
 #include "CesiumMetadataPrimitive.h"
 #include "CesiumModelMetadata.h"
 #include "CesiumPrimitiveFeatures.h"
@@ -15,13 +13,20 @@
 #include "Chaos/TriangleMeshImplicitObject.h"
 #include "Containers/Map.h"
 #include "Containers/UnrealString.h"
+#include "Math/TransformNonVectorized.h"
 #include "StaticMeshResources.h"
 #include "Templates/SharedPointer.h"
+
+#include <CesiumGltf/AccessorUtility.h>
+#include <CesiumGltf/Material.h>
+#include <CesiumGltf/MeshPrimitive.h>
+#include <CesiumGltf/Model.h>
 #include <cstdint>
 #include <glm/mat4x4.hpp>
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace LoadGltfResult {
 /**
@@ -44,8 +49,12 @@ struct LoadPrimitiveResult {
    */
   const CesiumGltf::Material* pMaterial = nullptr;
   glm::dmat4x4 transform{1.0};
+#if ENGINE_VERSION_5_4_OR_HIGHER
+  Chaos::FTriangleMeshImplicitObjectPtr pCollisionMesh = nullptr;
+#else
   TSharedPtr<Chaos::FTriangleMeshImplicitObject, ESPMode::ThreadSafe>
       pCollisionMesh = nullptr;
+#endif
   std::string name{};
 
   TUniquePtr<CesiumTextureUtility::LoadedTextureResult> baseColorTexture;
@@ -118,7 +127,8 @@ struct LoadPrimitiveResult {
    * accessor views on texture coordinate sets that will be used by feature ID
    * textures or property textures for picking.
    */
-  std::unordered_map<int32_t, CesiumTexCoordAccessorType> TexCoordAccessorMap;
+  std::unordered_map<int32_t, CesiumGltf::TexCoordAccessorType>
+      TexCoordAccessorMap;
 
   /**
    * The position accessor of the glTF primitive. This is used for computing
@@ -131,7 +141,7 @@ struct LoadPrimitiveResult {
    * The index accessor of the glTF primitive, if one is specified. This is used
    * for computing the UV at a hit location on a primitive.
    */
-  CesiumIndexAccessorType IndexAccessor;
+  CesiumGltf::IndexAccessorType IndexAccessor;
 
 #pragma endregion
 };
@@ -148,6 +158,10 @@ struct LoadMeshResult {
  */
 struct LoadNodeResult {
   std::optional<LoadMeshResult> meshResult = std::nullopt;
+  /**
+   * Array of instance transforms, if any.
+   */
+  std::vector<FTransform> InstanceTransforms;
 };
 
 /**

@@ -1,4 +1,4 @@
-// Copyright 2020-2023 CesiumGS, Inc. and Contributors
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
 
 #include "Cesium3DTileset.h"
 #include "Async/Async.h"
@@ -149,6 +149,9 @@ ACesiumGeoreference* ACesium3DTileset::ResolveGeoreference() {
     this->ResolvedGeoreference->OnGeoreferenceUpdated.AddUniqueDynamic(
         pRoot,
         &UCesium3DTilesetRoot::HandleGeoreferenceUpdated);
+    this->ResolvedGeoreference->OnEllipsoidChanged.AddUniqueDynamic(
+        this,
+        &ACesium3DTileset::HandleOnGeoreferenceEllipsoidChanged);
 
     // Update existing tile positions, if any.
     pRoot->HandleGeoreferenceUpdated();
@@ -471,10 +474,14 @@ void ACesium3DTileset::OnFocusEditorViewportOnThis() {
       *this->GetName());
 
   struct CalculateECEFCameraPosition {
+    const CesiumGeospatial::Ellipsoid& ellipsoid;
+
     glm::dvec3 operator()(const CesiumGeometry::BoundingSphere& sphere) {
       const glm::dvec3& center = sphere.getCenter();
       glm::dmat4 ENU =
-          CesiumGeospatial::GlobeTransforms::eastNorthUpToFixedFrame(center);
+          CesiumGeospatial::GlobeTransforms::eastNorthUpToFixedFrame(
+              center,
+              ellipsoid);
       glm::dvec3 offset =
           sphere.getRadius() *
           glm::normalize(
@@ -487,7 +494,9 @@ void ACesium3DTileset::OnFocusEditorViewportOnThis() {
     operator()(const CesiumGeometry::OrientedBoundingBox& orientedBoundingBox) {
       const glm::dvec3& center = orientedBoundingBox.getCenter();
       glm::dmat4 ENU =
-          CesiumGeospatial::GlobeTransforms::eastNorthUpToFixedFrame(center);
+          CesiumGeospatial::GlobeTransforms::eastNorthUpToFixedFrame(
+              center,
+              ellipsoid);
       const glm::dmat3& halfAxes = orientedBoundingBox.getHalfAxes();
       glm::dvec3 offset =
           glm::length(halfAxes[0] + halfAxes[1] + halfAxes[2]) *
@@ -525,9 +534,12 @@ void ACesium3DTileset::OnFocusEditorViewportOnThis() {
 
   ACesiumGeoreference* pGeoreference = this->ResolveGeoreference();
 
+  const CesiumGeospatial::Ellipsoid& ellipsoid =
+      pGeoreference->GetEllipsoid()->GetNativeEllipsoid();
+
   // calculate unreal camera position
   glm::dvec3 ecefCameraPosition =
-      std::visit(CalculateECEFCameraPosition{}, boundingVolume);
+      std::visit(CalculateECEFCameraPosition{ellipsoid}, boundingVolume);
   FVector unrealCameraPosition =
       pGeoreference->TransformEarthCenteredEarthFixedPositionToUnreal(
           VecMath::createVector(ecefCameraPosition));
@@ -589,6 +601,13 @@ void ACesium3DTileset::UpdateTransformFromCesium() {
     this->BoundingVolumePoolComponent->UpdateTransformFromCesium(
         CesiumToUnreal);
   }
+}
+
+void ACesium3DTileset::HandleOnGeoreferenceEllipsoidChanged(
+    UCesiumEllipsoid* OldEllipsoid,
+    UCesiumEllipsoid* NewEllpisoid) {
+  UE_LOG(LogCesium, Warning, TEXT("Ellipsoid changed"));
+  this->RefreshTileset();
 }
 
 // Called when the game starts or when spawned
@@ -708,8 +727,14 @@ public:
           &(*this->_pActor->_metadataDescription_DEPRECATED);
     }
 
+    const CesiumGeospatial::Ellipsoid& ellipsoid = tileLoadResult.ellipsoid;
+
     TUniquePtr<UCesiumGltfComponent::HalfConstructed> pHalf =
-        UCesiumGltfComponent::CreateOffGameThread(transform, options);
+        UCesiumGltfComponent::CreateOffGameThread(
+            transform,
+            options,
+            ellipsoid);
+
     return asyncSystem.createResolvedFuture(
         Cesium3DTilesSelection::TileLoadResultAndRenderResources{
             std::move(tileLoadResult),
@@ -719,12 +744,12 @@ public:
   virtual void* prepareInMainThread(
       Cesium3DTilesSelection::Tile& tile,
       void* pLoadThreadResult) override {
-    const Cesium3DTilesSelection::TileContent& content = tile.getContent();
+    Cesium3DTilesSelection::TileContent& content = tile.getContent();
     if (content.isRenderContent()) {
       TUniquePtr<UCesiumGltfComponent::HalfConstructed> pHalf(
           reinterpret_cast<UCesiumGltfComponent::HalfConstructed*>(
               pLoadThreadResult));
-      const Cesium3DTilesSelection::TileRenderContent& renderContent =
+      Cesium3DTilesSelection::TileRenderContent& renderContent =
           *content.getRenderContent();
       return UCesiumGltfComponent::CreateOnGameThread(
           renderContent.getModel(),
@@ -770,15 +795,29 @@ public:
 
     auto pOptions = *ppOptions;
 
+    if (pOptions->useMipmaps) {
+      std::optional<std::string> errorMessage =
+          CesiumGltfReader::GltfReader::generateMipMaps(image);
+      if (errorMessage) {
+        UE_LOG(
+            LogCesium,
+            Warning,
+            TEXT("%s"),
+            UTF8_TO_TCHAR(errorMessage->c_str()));
+      }
+    }
+
     auto texture = CesiumTextureUtility::loadTextureAnyThreadPart(
-        CesiumTextureUtility::GltfImagePtr{&image},
+        image,
         TextureAddress::TA_Clamp,
         TextureAddress::TA_Clamp,
         pOptions->filter,
-        pOptions->group,
         pOptions->useMipmaps,
-        true); // TODO: sRGB should probably be configurable on the raster
-               // overlay
+        pOptions->group,
+        // TODO: sRGB should probably be configurable on the raster overlay.
+        true,
+        std::nullopt,
+        nullptr);
     return texture.Release();
   }
 
@@ -794,23 +833,18 @@ public:
       return nullptr;
     }
 
-    // The image source pointer during loading may have been invalidated,
-    // so replace it.
-    CesiumTextureUtility::GltfImagePtr* pImageSource =
-        std::get_if<CesiumTextureUtility::GltfImagePtr>(
-            &pLoadedTexture->textureSource);
-    if (pImageSource) {
-      pImageSource->pImage = &rasterTile.getImage();
-    }
-
-    UTexture2D* pTexture =
-        CesiumTextureUtility::loadTextureGameThreadPart(pLoadedTexture.Get());
+    CesiumUtility::IntrusivePointer<
+        CesiumTextureUtility::ReferenceCountedUnrealTexture>
+        pTexture = CesiumTextureUtility::loadTextureGameThreadPart(
+            pLoadedTexture.Get());
     if (!pTexture) {
       return nullptr;
     }
 
-    pTexture->AddToRoot();
-    return pTexture;
+    // Don't let this ReferenceCountedUnrealTexture be destroyed when the
+    // intrusive pointer goes out of scope.
+    pTexture->addReference();
+    return pTexture.get();
   }
 
   virtual void freeRaster(
@@ -821,14 +855,14 @@ public:
       CesiumTextureUtility::LoadedTextureResult* pLoadedTexture =
           static_cast<CesiumTextureUtility::LoadedTextureResult*>(
               pLoadThreadResult);
-      CesiumTextureUtility::destroyHalfLoadedTexture(*pLoadedTexture);
       delete pLoadedTexture;
     }
 
     if (pMainThreadResult) {
-      UTexture* pTexture = static_cast<UTexture*>(pMainThreadResult);
-      pTexture->RemoveFromRoot();
-      CesiumTextureUtility::destroyTexture(pTexture);
+      CesiumTextureUtility::ReferenceCountedUnrealTexture* pTexture =
+          static_cast<CesiumTextureUtility::ReferenceCountedUnrealTexture*>(
+              pMainThreadResult);
+      pTexture->releaseReference();
     }
   }
 
@@ -850,7 +884,9 @@ public:
         pGltfContent->AttachRasterTile(
             tile,
             rasterTile,
-            static_cast<UTexture2D*>(pMainThreadRendererResources),
+            static_cast<CesiumTextureUtility::ReferenceCountedUnrealTexture*>(
+                pMainThreadRendererResources)
+                ->getUnrealTexture(),
             translation,
             scale,
             overlayTextureCoordinateID);
@@ -874,7 +910,9 @@ public:
         pGltfContent->DetachRasterTile(
             tile,
             rasterTile,
-            static_cast<UTexture2D*>(pMainThreadRendererResources));
+            static_cast<CesiumTextureUtility::ReferenceCountedUnrealTexture*>(
+                pMainThreadRendererResources)
+                ->getUnrealTexture());
       }
     }
   }
@@ -1038,6 +1076,9 @@ void ACesium3DTileset::LoadTileset() {
     this->BoundingVolumePoolComponent->initPool(this->OcclusionPoolSize);
   }
 
+  CesiumGeospatial::Ellipsoid pNativeEllipsoid =
+      this->ResolveGeoreference()->GetEllipsoid()->GetNativeEllipsoid();
+
   ACesiumCreditSystem* pCreditSystem = this->ResolvedCreditSystem;
 
   Cesium3DTilesSelection::TilesetExternals externals{
@@ -1057,6 +1098,8 @@ void ACesium3DTileset::LoadTileset() {
   this->LoadProgress = 0;
 
   Cesium3DTilesSelection::TilesetOptions options;
+
+  options.ellipsoid = pNativeEllipsoid;
 
   options.enableOcclusionCulling =
       GetDefault<UCesiumRuntimeSettings>()
@@ -1133,6 +1176,8 @@ void ACesium3DTileset::LoadTileset() {
 
   options.contentOptions.ktx2TranscodeTargets =
       CesiumGltf::Ktx2TranscodeTargets(supportedFormats, false);
+
+  options.contentOptions.applyTextureTransform = false;
 
   switch (this->TilesetSource) {
   case ETilesetSource::FromUrl:
@@ -1529,7 +1574,8 @@ std::vector<FCesiumCamera> ACesium3DTileset::GetSceneCaptures() const {
 /*static*/ Cesium3DTilesSelection::ViewState
 ACesium3DTileset::CreateViewStateFromViewParameters(
     const FCesiumCamera& camera,
-    const glm::dmat4& unrealWorldToTileset) {
+    const glm::dmat4& unrealWorldToTileset,
+    UCesiumEllipsoid* ellipsoid) {
 
   double horizontalFieldOfView =
       FMath::DegreesToRadians(camera.FieldOfViewDegrees);
@@ -1579,7 +1625,8 @@ ACesium3DTileset::CreateViewStateFromViewParameters(
       tilesetCameraUp,
       size,
       horizontalFieldOfView,
-      verticalFieldOfView);
+      verticalFieldOfView,
+      ellipsoid->GetNativeEllipsoid());
 }
 
 #if WITH_EDITOR
@@ -2028,10 +2075,14 @@ void ACesium3DTileset::Tick(float DeltaTime) {
     return;
   }
 
+  UCesiumEllipsoid* ellipsoid = this->ResolveGeoreference()->GetEllipsoid();
+
   std::vector<Cesium3DTilesSelection::ViewState> frustums;
   for (const FCesiumCamera& camera : cameras) {
-    frustums.push_back(
-        CreateViewStateFromViewParameters(camera, unrealWorldToCesiumTileset));
+    frustums.push_back(CreateViewStateFromViewParameters(
+        camera,
+        unrealWorldToCesiumTileset,
+        ellipsoid));
   }
 
   const Cesium3DTilesSelection::ViewUpdateResult* pResult;

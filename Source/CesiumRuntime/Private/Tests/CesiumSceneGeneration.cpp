@@ -1,4 +1,4 @@
-// Copyright 2020-2023 CesiumGS, Inc. and Contributors
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
 
 #if WITH_EDITOR
 
@@ -19,7 +19,7 @@
 namespace Cesium {
 
 FString SceneGenerationContext::testIonToken(
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIyOGUxNjFmMy1mY2ZhLTQwMmEtYTNkYy1kZmExMGJjNjdlNTkiLCJpZCI6MjU5LCJpYXQiOjE2OTYxOTg1MTl9.QN5_xydinXOHF0xqy2zwQ5Hh4I5pVcLeMaqiJ9ZEsD4");
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIyOGEwZmZhZS03N2U3LTQ3YzMtYWRhYy05OGY0MDIxY2ZkMWEiLCJpZCI6MjU5LCJpYXQiOjE3MTczODI3OTd9.xo6dUz0EilPaeagaXnmRKGLyVL4lTk3P99u1_1N78js");
 
 void SceneGenerationContext::setCommonProperties(
     const FVector& origin,

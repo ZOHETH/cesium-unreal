@@ -1,4 +1,4 @@
-// Copyright 2020-2021 CesiumGS, Inc. and Contributors
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
 
 #include "CesiumFeatureIdSet.h"
 #include "CesiumGltf/Accessor.h"
@@ -20,7 +20,7 @@ FCesiumFeatureIdSet::FCesiumFeatureIdSet(
       _featureIDSetType(ECesiumFeatureIdSetType::None),
       _featureCount(FeatureID.featureCount),
       _nullFeatureID(FeatureID.nullFeatureId.value_or(-1)),
-      _propertyTableIndex(FeatureID.propertyTable.value_or(-1)),
+      _propertyTableIndex(FeatureID.propertyTable),
       _label(FString(FeatureID.label.value_or("").c_str())) {
   FString propertyTableName;
 
@@ -155,13 +155,18 @@ int64 UCesiumFeatureIdSetBlueprintLibrary::GetFeatureIDFromHit(
     return -1;
   }
 
-  auto faceIndices = std::visit(
-      CesiumFaceVertexIndicesFromAccessor{
+  const CesiumPrimitiveData& primData = pGltfComponent->getPrimitiveData();
+  if (!primData.pMeshPrimitive) {
+    return -1;
+  }
+  auto VertexIndices = std::visit(
+      CesiumGltf::IndicesForFaceFromAccessor{
           Hit.FaceIndex,
-          pGltfComponent->PositionAccessor.size()},
-      pGltfComponent->IndexAccessor);
+          primData.PositionAccessor.size(),
+          primData.pMeshPrimitive->mode},
+      primData.IndexAccessor);
 
-  int64 VertexIndex = faceIndices[0];
+  int64 VertexIndex = VertexIndices[0];
 
   if (FeatureIDSet._featureIDSetType == ECesiumFeatureIdSetType::Attribute) {
     FCesiumFeatureIdAttribute attribute =

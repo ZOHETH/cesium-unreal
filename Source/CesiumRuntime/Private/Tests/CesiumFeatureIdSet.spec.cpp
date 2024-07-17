@@ -1,3 +1,5 @@
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
+
 #include "CesiumFeatureIdSet.h"
 #include "CesiumGltf/ExtensionExtMeshFeatures.h"
 #include "CesiumGltf/ExtensionModelExtStructuralMetadata.h"
@@ -151,7 +153,7 @@ void FCesiumFeatureIdSetSpec::Define() {
           "PropertyTableIndex",
           UCesiumFeatureIdSetBlueprintLibrary::GetPropertyTableIndex(
               featureIDSet),
-          static_cast<int64>(*featureId.propertyTable));
+          static_cast<int64>(featureId.propertyTable));
     });
   });
 
@@ -375,7 +377,9 @@ void FCesiumFeatureIdSetSpec::Define() {
       model = Model();
       Mesh& mesh = model.meshes.emplace_back();
       pPrimitive = &mesh.primitives.emplace_back();
+      pPrimitive->mode = CesiumGltf::MeshPrimitive::Mode::TRIANGLES;
       pPrimitiveComponent = NewObject<UCesiumGltfPrimitiveComponent>();
+      pPrimitiveComponent->getPrimitiveData().pMeshPrimitive = pPrimitive;
 
       std::vector<glm::vec3> positions{
           glm::vec3(-1, 0, 0),
@@ -408,11 +412,10 @@ void FCesiumFeatureIdSetSpec::Define() {
     It("returns -1 for invalid hit component", [this]() {
       FeatureId featureId;
       featureId.featureCount = 6;
-
-      pPrimitiveComponent->PositionAccessor =
-          CesiumGltf::AccessorView<FVector3f>(
-              model,
-              static_cast<int32_t>(model.accessors.size() - 1));
+      CesiumPrimitiveData& primData = pPrimitiveComponent->getPrimitiveData();
+      primData.PositionAccessor = CesiumGltf::AccessorView<FVector3f>(
+          model,
+          static_cast<int32_t>(model.accessors.size() - 1));
 
       FCesiumFeatureIdSet featureIDSet(model, *pPrimitive, featureId);
 
@@ -453,9 +456,10 @@ void FCesiumFeatureIdSetSpec::Define() {
           texCoords,
           0);
 
-      pPrimitiveComponent->PositionAccessor =
+      CesiumPrimitiveData& primData = pPrimitiveComponent->getPrimitiveData();
+      primData.PositionAccessor =
           CesiumGltf::AccessorView<FVector3f>(model, positionAccessorIndex);
-      pPrimitiveComponent->TexCoordAccessorMap.emplace(
+      primData.TexCoordAccessorMap.emplace(
           0,
           AccessorView<CesiumGltf::AccessorTypes::VEC2<float>>(
               model,
@@ -488,10 +492,10 @@ void FCesiumFeatureIdSetSpec::Define() {
       FeatureId featureId;
       featureId.featureCount = 6;
 
-      pPrimitiveComponent->PositionAccessor =
-          CesiumGltf::AccessorView<FVector3f>(
-              model,
-              static_cast<int32_t>(model.accessors.size() - 1));
+      CesiumPrimitiveData& primData = pPrimitiveComponent->getPrimitiveData();
+      primData.PositionAccessor = CesiumGltf::AccessorView<FVector3f>(
+          model,
+          static_cast<int32_t>(model.accessors.size() - 1));
 
       FCesiumFeatureIdSet featureIDSet(model, *pPrimitive, featureId);
 
@@ -529,7 +533,8 @@ void FCesiumFeatureIdSetSpec::Define() {
           2,
           attributeIndex);
 
-      pPrimitiveComponent->PositionAccessor =
+      CesiumPrimitiveData& primData = pPrimitiveComponent->getPrimitiveData();
+      primData.PositionAccessor =
           CesiumGltf::AccessorView<FVector3f>(model, positionAccessorIndex);
 
       FCesiumFeatureIdSet featureIDSet(model, *pPrimitive, featureId);

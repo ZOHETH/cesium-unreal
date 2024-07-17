@@ -1,4 +1,4 @@
-// Copyright 2020-2021 CesiumGS, Inc. and Contributors
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
 
 #include "CesiumRasterOverlay.h"
 #include "Async/Async.h"
@@ -44,6 +44,7 @@ void UCesiumRasterOverlay::AddToTileset() {
   }
 
   CesiumRasterOverlays::RasterOverlayOptions options{};
+  options.ellipsoid = pTileset->getOptions().ellipsoid;
   options.maximumScreenSpaceError = this->MaximumScreenSpaceError;
   options.maximumSimultaneousTileLoads = this->MaximumSimultaneousTileLoads;
   options.maximumTextureSize = this->MaximumTextureSize;

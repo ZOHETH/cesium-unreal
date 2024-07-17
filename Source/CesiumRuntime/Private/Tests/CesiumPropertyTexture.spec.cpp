@@ -1,3 +1,5 @@
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
+
 #include "CesiumGltf/ExtensionModelExtStructuralMetadata.h"
 #include "CesiumGltf/Model.h"
 #include "CesiumGltfComponent.h"
@@ -585,6 +587,7 @@ void FCesiumPropertyTextureSpec::Define() {
     BeforeEach([this]() {
       Mesh& mesh = model.meshes.emplace_back();
       pPrimitive = &mesh.primitives.emplace_back();
+      pPrimitive->mode = MeshPrimitive::Mode::TRIANGLES;
 
       std::vector<glm::vec3> positions{
           glm::vec3(-1, 0, 0),
@@ -632,9 +635,11 @@ void FCesiumPropertyTextureSpec::Define() {
           pModelComponent,
           FAttachmentTransformRules(EAttachmentRule::KeepRelative, false));
 
-      pPrimitiveComponent->PositionAccessor =
+      CesiumPrimitiveData& primData = pPrimitiveComponent->getPrimitiveData();
+      primData.pMeshPrimitive = pPrimitive;
+      primData.PositionAccessor =
           CesiumGltf::AccessorView<FVector3f>(model, positionAccessorIndex);
-      pPrimitiveComponent->TexCoordAccessorMap.emplace(
+      primData.TexCoordAccessorMap.emplace(
           0,
           AccessorView<CesiumGltf::AccessorTypes::VEC2<float>>(
               model,

@@ -1,4 +1,4 @@
-// Copyright 2020-2021 CesiumGS, Inc. and Contributors
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
 
 #include "CesiumPolygonRasterOverlay.h"
 #include "Cesium3DTilesSelection/RasterizedPolygonsTileExcluder.h"
@@ -38,12 +38,15 @@ UCesiumPolygonRasterOverlay::CreateOverlay(
     polygons.emplace_back(std::move(polygon));
   }
 
+  UCesiumEllipsoid* Ellipsoid = pTileset->ResolveGeoreference()->GetEllipsoid();
+  check(IsValid(Ellipsoid));
+
   return std::make_unique<CesiumRasterOverlays::RasterizedPolygonsOverlay>(
       TCHAR_TO_UTF8(*this->MaterialLayerKey),
       polygons,
       this->InvertSelection,
-      CesiumGeospatial::Ellipsoid::WGS84,
-      CesiumGeospatial::GeographicProjection(),
+      Ellipsoid->GetNativeEllipsoid(),
+      CesiumGeospatial::GeographicProjection(Ellipsoid->GetNativeEllipsoid()),
       options);
 }
 

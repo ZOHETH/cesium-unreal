@@ -1,4 +1,4 @@
-// Copyright 2020-2023 CesiumGS, Inc. and Contributors
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
 
 #include "CesiumFeatureIdTexture.h"
 #include "CesiumGltf/FeatureIdTexture.h"
@@ -16,16 +16,28 @@ FCesiumFeatureIdTexture::FCesiumFeatureIdTexture(
     const FeatureIdTexture& FeatureIdTexture,
     const FString& PropertyTableName)
     : _status(ECesiumFeatureIdTextureStatus::ErrorInvalidTexture),
-      _featureIdTextureView(Model, FeatureIdTexture),
+      _featureIdTextureView(),
       _texCoordAccessor(),
       _textureCoordinateSetIndex(FeatureIdTexture.texCoord),
       _propertyTableName(PropertyTableName) {
+  TextureViewOptions options;
+  options.applyKhrTextureTransformExtension = true;
+
+  if (FeatureIdTexture.extras.find("makeImageCopy") !=
+      FeatureIdTexture.extras.end()) {
+    options.makeImageCopy =
+        FeatureIdTexture.extras.at("makeImageCopy").getBoolOrDefault(false);
+  }
+
+  this->_featureIdTextureView =
+      FeatureIdTextureView(Model, FeatureIdTexture, options);
+
   switch (_featureIdTextureView.status()) {
   case FeatureIdTextureViewStatus::Valid:
-    _status = ECesiumFeatureIdTextureStatus::Valid;
+    this->_status = ECesiumFeatureIdTextureStatus::Valid;
     break;
   case FeatureIdTextureViewStatus::ErrorInvalidChannels:
-    _status = ECesiumFeatureIdTextureStatus::ErrorInvalidTextureAccess;
+    this->_status = ECesiumFeatureIdTextureStatus::ErrorInvalidTextureAccess;
     return;
   default:
     // Error with the texture or image. The status is already set by the
@@ -40,7 +52,7 @@ FCesiumFeatureIdTexture::FCesiumFeatureIdTexture(
   // To maintain this functionality in EXT_mesh_features, the texture view will
   // still be valid if the intended texcoords don't exist. However, feature IDs
   // won't be retrievable by vertex index.
-  this->_texCoordAccessor = GetTexCoordAccessorView(
+  this->_texCoordAccessor = CesiumGltf::getTexCoordAccessorView(
       Model,
       Primitive,
       this->_textureCoordinateSetIndex);
@@ -59,23 +71,22 @@ UCesiumFeatureIdTextureBlueprintLibrary::GetFeatureIDTextureStatus(
 
 int64 UCesiumFeatureIdTextureBlueprintLibrary::GetGltfTextureCoordinateSetIndex(
     UPARAM(ref) const FCesiumFeatureIdTexture& FeatureIDTexture) {
-  return FeatureIDTexture.getFeatureIdTextureView().getTexCoordSetIndex();
+  return FeatureIDTexture._featureIdTextureView.getTexCoordSetIndex();
 }
 
 int64 UCesiumFeatureIdTextureBlueprintLibrary::GetUnrealUVChannel(
     const UPrimitiveComponent* PrimitiveComponent,
     UPARAM(ref) const FCesiumFeatureIdTexture& FeatureIDTexture) {
-  const UCesiumGltfPrimitiveComponent* pPrimitive =
-      Cast<UCesiumGltfPrimitiveComponent>(PrimitiveComponent);
-  if (!pPrimitive ||
+  const auto* pCesiumPrimitive = Cast<ICesiumPrimitive>(PrimitiveComponent);
+  if (!pCesiumPrimitive ||
       FeatureIDTexture._status != ECesiumFeatureIdTextureStatus::Valid) {
     return -1;
   }
-
-  auto textureCoordinateIndexIt = pPrimitive->GltfToUnrealTexCoordMap.find(
+  const CesiumPrimitiveData& primData = pCesiumPrimitive->getPrimitiveData();
+  auto textureCoordinateIndexIt = primData.GltfToUnrealTexCoordMap.find(
       UCesiumFeatureIdTextureBlueprintLibrary::GetGltfTextureCoordinateSetIndex(
           FeatureIDTexture));
-  if (textureCoordinateIndexIt == pPrimitive->GltfToUnrealTexCoordMap.end()) {
+  if (textureCoordinateIndexIt == primData.GltfToUnrealTexCoordMap.end()) {
     return -1;
   }
 
@@ -102,14 +113,13 @@ int64 UCesiumFeatureIdTextureBlueprintLibrary::GetFeatureIDForVertex(
     UPARAM(ref) const FCesiumFeatureIdTexture& FeatureIDTexture,
     int64 VertexIndex) {
   const std::optional<glm::dvec2> texCoords = std::visit(
-      CesiumTexCoordFromAccessor{VertexIndex},
+      CesiumGltf::TexCoordFromAccessor{VertexIndex},
       FeatureIDTexture._texCoordAccessor);
   if (!texCoords) {
     return -1;
   }
 
-  return GetFeatureIDForTextureCoordinates(
-      FeatureIDTexture,
+  return FeatureIDTexture._featureIdTextureView.getFeatureID(
       (*texCoords)[0],
       (*texCoords)[1]);
 }

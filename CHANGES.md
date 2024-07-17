@@ -2,10 +2,114 @@
 
 ### ? - ?
 
+#### Fixes :wrench:
+
+- Fixed issue with `UCesiumGlobeAnchorComponent::GetEllipsoid` that caused compilation errors on some machines.
+
+### v2.7.0 - 2024-07-01
+
+##### Additions :tada:
+
+- Cesium for Unreal now supports using non-WGS84 ellipsoids.
+  - An `CesiumEllipsoid` asset may be specified in the `Ellipsoid` field of a `CesiumGeoreference`.
+  - To create a `CesiumEllipsoid` asset, right-click in the Content Drawer and select "Data Asset" under "Miscellaneous." Choose "Cesium Ellipsoid" from the menu that appears.
+
+##### Fixes :wrench:
+
+- Fixed two problems with `CesiumCartographicRasterOverlay`:
+  - Small tiles would never be excluded, even with "Exclude Selected Tiles" enabled.
+  - Pieces of tiles would sometimes not have the raster overlay correctly applied to them. When using with clipping, this would cause bits of tiles to randomly appear inside the clipping polygon.
+- Removed an unnecessary alpha check when selecting translucent base materials.
+- Fixed a crash caused by `CesiumSunSky` when no viewport is activated in the Editor.
+- Fixed build issues in Unreal 5.4.2 relating to `UStaticMesh` and `glm::toMat4`.
+
+In addition to the above, this release updates [cesium-native](https://github.com/CesiumGS/cesium-native) from v0.36.0 to v0.37.0. See the [changelog](https://github.com/CesiumGS/cesium-native/blob/main/CHANGES.md) for a complete list of changes in cesium-native.
+
+### v2.6.0 - 2024-06-03
+
+##### Breaking Changes :mega:
+
+- Renamed the following properties on `CesiumWebMapTileServiceRasterOverlay`:
+  - `Url` -> `BaseUrl`
+  - `West` -> `RectangleWest`
+  - `South` -> `RectangleSouth`
+  - `East` -> `RectangleEast`
+  - `North` -> `RectangleNorth`
+- `UseWebMercatorProjection` has been deprecated on `CesiumWebMapTileServiceRasterOverlay`. Instead, use the `Projection` enum property to specify between `Geographic` or `WebMercator` projection.
+
+##### Additions :tada:
+
+- Added support for Instanced 3D Meshes (I3DM) and the glTF `EXT_mesh_gpu_instancing` extension.
+- Improved DynamicPawn movement by interpolating to its intended speed. This provides smoother movement over areas with large height variation, e.g., when flying over buildings in a city.
+- Added `TileWidth` and `TileHeight` properties to `CesiumWebMapTileServiceRasterOverlay`.
+
+##### Fixes :wrench:
+
+- Fixed an issue with pixel dithering artifacts that could appear on tilesets.
+- Fixed an issue where DynamicPawn could get stuck after interrupting a flight from `UCesiumFlyToComponent`.
+- Fixed a bug where `CesiumTileMapServiceRasterOverlay`, `CesiumWebMapServiceRasterOverlay`, and `CesiumWebMapTileServiceRasterOverlay` would attempt to load empty URLs.
+- Fixed a bug that caused some textures shared between multiple glTF primitives to be missing entirely.
+- Fixed a bug that caused tilesets to fail to load with the "Experimental Occlusion Culling Feature" enabled.
+- Fixed a problem that could cause linker errors when packaging a game using both Cesium for Unreal and the Pixel Streaming plugin in Unreal Engine 5.4.
+
+In addition to the above, this release updates [cesium-native](https://github.com/CesiumGS/cesium-native) from v0.35.0 to v0.36.0. See the [changelog](https://github.com/CesiumGS/cesium-native/blob/main/CHANGES.md) for a complete list of changes in cesium-native.
+
+### v2.5.0 - 2024-05-01
+
+This is the last release of Cesium for Unreal that will support Unreal Engine v5.1. Future versions will require Unreal Engine v5.2+.
+
+##### Additions :tada:
+
+- Added support for Unreal Engine 5.4.
+- Added support for Cesium ion servers in single user mode. Tokens are not required to stream assets from such servers.
+
+##### Fixes :wrench:
+
+- Fixed an issue where tilesets would render completely black on Quest headsets and some iOS devices.
+- Fixed a crash on Unreal Editor shutdown that would occasionally happen due to attempts to access garbage-collected static classes.
+
+In addition to the above, this release updates [cesium-native](https://github.com/CesiumGS/cesium-native) from v0.34.0 to v0.35.0. See the [changelog](https://github.com/CesiumGS/cesium-native/blob/main/CHANGES.md) for a complete list of changes in cesium-native.
+
+### v2.4.1 - 2024-04-01
+
+This release updates [cesium-native](https://github.com/CesiumGS/cesium-native) from v0.33.0 to v0.34.0. See the [changelog](https://github.com/CesiumGS/cesium-native/blob/main/CHANGES.md) for a complete list of changes in cesium-native.
+
+### v2.4.0 - 2024-03-01
+
+##### Additions :tada:
+
+- Significantly reduced CPU memory used by glTF and raster overlay textures.
+- Improved texture creation performance on non-D3D platforms.
+- Added support for the `KHR_texture_transform` glTF extension - including rotation - for `CesiumFeatureIdTexture` and `CesiumPropertyTextureProperty`.
+- `CesiumFeaturesMetadataComponent` now generates nodes for `KHR_texture_transform` if the extension is present in a feature ID texture or property texture property.
+
+##### Fixes :wrench:
+
+- Metadata-related textures are now created in `TEXTUREGROUP_8BitData` instead of `TEXTUREGROUP_World`.
+- Added some defensive nullptr checks to `CesiumSunSky`.
+
+In addition to the above, this release updates [cesium-native](https://github.com/CesiumGS/cesium-native) from v0.32.0 to v0.33.0. See the [changelog](https://github.com/CesiumGS/cesium-native/blob/main/CHANGES.md) for a complete list of changes in cesium-native.
+
+### v2.3.0 - 2024-02-01
+
+##### Additions :tada:
+
+- Added support for Web Map Tile Service (WMTS) with `CesiumWebMapTileServiceRasterOverlay`.
+- Significantly reduced CPU memory usage by textures on non-Windows systems.
+- Added support for the `KHR_texture_transform` glTF extension - including rotation - in `baseColorTexture`, `metallicRoughnessTexture`, `emissiveTexture`, `normalTexture`, and `occlusionTexture`. The transformation is now applied on the GPU via nodes in the Material, rather than on the CPU by directly modifying texture coordinates.
+
 ##### Fixes :wrench:
 
 - Fixed a bug in `MLB_DitherFade` that made glTF materials with an `alphaMode` of `MASK` incorrectly appear as fully opaque.
 - Fixed a bug in `CesiumFlyToComponent` that could cause the position of the object to shift suddenly at the very end of the flight.
+- Fixed a bug that caused textures created by Cesium for Unreal on D3D11 and D3D12 (only) to not be counted in the "Texture Memory Used" stat in the "Memory" stat group or in any counter in the "TextureGroup" stat group.
+- Fixed a bug in `CesiumGltfComponent` that would cause a crash if the `Ignore KHR_materials_unlit` setting was enabled on a point cloud.
+- Fixed a bug in `CesiumActors` that would cause the editor to crash when running in Standalone mode.
+- Fixed several build warnings when packing in Unreal Engine 5.3.
+- Readded backwards compatibility for feature textures from `EXT_feature_metadata`, which was mistakenly removed.
+- Fixed a bug that caused nav mesh creation to be slow due to creating duplicate physics meshes.
+
+In addition to the above, this release updates [cesium-native](https://github.com/CesiumGS/cesium-native) from v0.31.0 to v0.32.0. See the [changelog](https://github.com/CesiumGS/cesium-native/blob/main/CHANGES.md) for a complete list of changes in cesium-native.
 
 ### v2.2.0 - 2023-12-14
 

@@ -1,4 +1,4 @@
-// Copyright 2020-2023 CesiumGS, Inc. and Contributors
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
 
 #include "GlobeAwareDefaultPawn.h"
 #include "Camera/CameraComponent.h"
@@ -76,7 +76,10 @@ void AGlobeAwareDefaultPawn::MoveUp_World(float Val) {
     return;
   }
 
-  FVector upEcef = UCesiumWgs84Ellipsoid::GeodeticSurfaceNormal(
+  UCesiumEllipsoid* pEllipsoid = pGeoreference->GetEllipsoid();
+  check(IsValid(pEllipsoid));
+
+  FVector upEcef = pEllipsoid->GeodeticSurfaceNormal(
       this->GlobeAnchor->GetEarthCenteredEarthFixedPosition());
   FVector up =
       pGeoreference->TransformEarthCenteredEarthFixedDirectionToUnreal(upEcef);

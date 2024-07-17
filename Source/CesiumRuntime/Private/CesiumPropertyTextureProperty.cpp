@@ -1,9 +1,10 @@
-// Copyright 2020-2023 CesiumGS, Inc. and Contributors
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
 
 #include "CesiumPropertyTextureProperty.h"
 #include "CesiumGltfPrimitiveComponent.h"
-#include "CesiumMetadataConversions.h"
+#include "UnrealMetadataConversions.h"
 
+#include <CesiumGltf/MetadataConversions.h>
 #include <cstdint>
 #include <limits>
 
@@ -343,6 +344,18 @@ FCesiumPropertyTextureProperty::getImage() const {
       });
 }
 
+const std::optional<CesiumGltf::KhrTextureTransform>
+FCesiumPropertyTextureProperty::getTextureTransform() const {
+  return propertyTexturePropertyCallback<
+      std::optional<CesiumGltf::KhrTextureTransform>>(
+      this->_property,
+      this->_valueType,
+      this->_normalized,
+      [](const auto& view) -> std::optional<CesiumGltf::KhrTextureTransform> {
+        return view.getTextureTransform();
+      });
+}
+
 ECesiumPropertyTexturePropertyStatus
 UCesiumPropertyTexturePropertyBlueprintLibrary::
     GetPropertyTexturePropertyStatus(
@@ -401,10 +414,10 @@ int64 UCesiumPropertyTexturePropertyBlueprintLibrary::GetUnrealUVChannel(
 
   int64_t texCoordSetIndex = UCesiumPropertyTexturePropertyBlueprintLibrary::
       GetGltfTextureCoordinateSetIndex(Property);
-
+  const CesiumPrimitiveData& primData = pPrimitive->getPrimitiveData();
   auto textureCoordinateIndexIt =
-      pPrimitive->GltfToUnrealTexCoordMap.find(texCoordSetIndex);
-  if (textureCoordinateIndexIt == pPrimitive->GltfToUnrealTexCoordMap.end()) {
+      primData.GltfToUnrealTexCoordMap.find(texCoordSetIndex);
+  if (textureCoordinateIndexIt == primData.GltfToUnrealTexCoordMap.end()) {
     return -1;
   }
 
@@ -468,9 +481,9 @@ uint8 UCesiumPropertyTexturePropertyBlueprintLibrary::GetByte(
         auto maybeValue = view.get(UV.X, UV.Y);
         if (maybeValue) {
           auto value = *maybeValue;
-          return CesiumMetadataConversions<uint8, decltype(value)>::convert(
-              value,
-              DefaultValue);
+          return CesiumGltf::MetadataConversions<uint8, decltype(value)>::
+              convert(value)
+                  .value_or(DefaultValue);
         }
         return DefaultValue;
       });
@@ -491,9 +504,9 @@ int32 UCesiumPropertyTexturePropertyBlueprintLibrary::GetInteger(
         auto maybeValue = view.get(UV.X, UV.Y);
         if (maybeValue) {
           auto value = *maybeValue;
-          return CesiumMetadataConversions<int32, decltype(value)>::convert(
-              value,
-              DefaultValue);
+          return CesiumGltf::MetadataConversions<int32, decltype(value)>::
+              convert(value)
+                  .value_or(DefaultValue);
         }
         return DefaultValue;
       });
@@ -514,9 +527,9 @@ float UCesiumPropertyTexturePropertyBlueprintLibrary::GetFloat(
         auto maybeValue = view.get(UV.X, UV.Y);
         if (maybeValue) {
           auto value = *maybeValue;
-          return CesiumMetadataConversions<float, decltype(value)>::convert(
-              value,
-              DefaultValue);
+          return CesiumGltf::MetadataConversions<float, decltype(value)>::
+              convert(value)
+                  .value_or(DefaultValue);
         }
         return DefaultValue;
       });
@@ -537,9 +550,9 @@ double UCesiumPropertyTexturePropertyBlueprintLibrary::GetFloat64(
         auto maybeValue = view.get(UV.X, UV.Y);
         if (maybeValue) {
           auto value = *maybeValue;
-          return CesiumMetadataConversions<double, decltype(value)>::convert(
-              value,
-              DefaultValue);
+          return CesiumGltf::MetadataConversions<double, decltype(value)>::
+              convert(value)
+                  .value_or(DefaultValue);
         }
         return DefaultValue;
       });
@@ -553,18 +566,25 @@ FIntPoint UCesiumPropertyTexturePropertyBlueprintLibrary::GetIntPoint(
       Property._property,
       Property._valueType,
       Property._normalized,
-      [&UV, DefaultValue](const auto& view) -> FIntPoint {
+      [&UV, &DefaultValue](const auto& view) -> FIntPoint {
         if (view.status() != PropertyTexturePropertyViewStatus::Valid) {
           return DefaultValue;
         }
         auto maybeValue = view.get(UV.X, UV.Y);
-        if (maybeValue) {
-          auto value = *maybeValue;
-          return CesiumMetadataConversions<FIntPoint, decltype(value)>::convert(
-              value,
-              DefaultValue);
+        if (!maybeValue) {
+          return DefaultValue;
         }
-        return DefaultValue;
+        auto value = *maybeValue;
+        if constexpr (IsMetadataString<decltype(value)>::value) {
+          return UnrealMetadataConversions::toIntPoint(
+              *maybeValue,
+              DefaultValue);
+        } else {
+          auto maybeVec2 = CesiumGltf::
+              MetadataConversions<glm::ivec2, decltype(value)>::convert(value);
+          return maybeVec2 ? UnrealMetadataConversions::toIntPoint(*maybeVec2)
+                           : DefaultValue;
+        }
       });
 }
 
@@ -576,18 +596,23 @@ FVector2D UCesiumPropertyTexturePropertyBlueprintLibrary::GetVector2D(
       Property._property,
       Property._valueType,
       Property._normalized,
-      [&UV, DefaultValue](const auto& view) -> FVector2D {
+      [&UV, &DefaultValue](const auto& view) -> FVector2D {
         if (view.status() != PropertyTexturePropertyViewStatus::Valid) {
           return DefaultValue;
         }
         auto maybeValue = view.get(UV.X, UV.Y);
-        if (maybeValue) {
-          auto value = *maybeValue;
-          return CesiumMetadataConversions<FVector2D, decltype(value)>::convert(
-              value,
-              DefaultValue);
+        if (!maybeValue) {
+          return DefaultValue;
         }
-        return DefaultValue;
+        auto value = *maybeValue;
+        if constexpr (IsMetadataString<decltype(value)>::value) {
+          return UnrealMetadataConversions::toVector2D(value, DefaultValue);
+        } else {
+          auto maybeVec2 = CesiumGltf::
+              MetadataConversions<glm::dvec2, decltype(value)>::convert(value);
+          return maybeVec2 ? UnrealMetadataConversions::toVector2D(*maybeVec2)
+                           : DefaultValue;
+        }
       });
 }
 
@@ -599,17 +624,23 @@ FIntVector UCesiumPropertyTexturePropertyBlueprintLibrary::GetIntVector(
       Property._property,
       Property._valueType,
       Property._normalized,
-      [&UV, DefaultValue](const auto& view) -> FIntVector {
+      [&UV, &DefaultValue](const auto& view) -> FIntVector {
         if (view.status() != PropertyTexturePropertyViewStatus::Valid) {
           return DefaultValue;
         }
         auto maybeValue = view.get(UV.X, UV.Y);
-        if (maybeValue) {
-          auto value = *maybeValue;
-          return CesiumMetadataConversions<FIntVector, decltype(value)>::
-              convert(value, DefaultValue);
+        if (!maybeValue) {
+          return DefaultValue;
         }
-        return DefaultValue;
+        auto value = *maybeValue;
+        if constexpr (IsMetadataString<decltype(value)>::value) {
+          return UnrealMetadataConversions::toIntVector(value, DefaultValue);
+        } else {
+          auto maybeVec3 = CesiumGltf::
+              MetadataConversions<glm::ivec3, decltype(value)>::convert(value);
+          return maybeVec3 ? UnrealMetadataConversions::toIntVector(*maybeVec3)
+                           : DefaultValue;
+        }
       });
 }
 
@@ -621,18 +652,23 @@ FVector UCesiumPropertyTexturePropertyBlueprintLibrary::GetVector(
       Property._property,
       Property._valueType,
       Property._normalized,
-      [&UV, DefaultValue](const auto& view) -> FVector {
+      [&UV, &DefaultValue](const auto& view) -> FVector {
         if (view.status() != PropertyTexturePropertyViewStatus::Valid) {
           return DefaultValue;
         }
         auto maybeValue = view.get(UV.X, UV.Y);
-        if (maybeValue) {
-          auto value = *maybeValue;
-          return CesiumMetadataConversions<FVector, decltype(value)>::convert(
-              value,
-              DefaultValue);
+        if (!maybeValue) {
+          return DefaultValue;
         }
-        return DefaultValue;
+        auto value = *maybeValue;
+        if constexpr (IsMetadataString<decltype(value)>::value) {
+          return UnrealMetadataConversions::toVector(value, DefaultValue);
+        } else {
+          auto maybeVec3 = CesiumGltf::
+              MetadataConversions<glm::dvec3, decltype(value)>::convert(value);
+          return maybeVec3 ? UnrealMetadataConversions::toVector(*maybeVec3)
+                           : DefaultValue;
+        }
       });
 }
 
@@ -644,18 +680,23 @@ FVector4 UCesiumPropertyTexturePropertyBlueprintLibrary::GetVector4(
       Property._property,
       Property._valueType,
       Property._normalized,
-      [&UV, DefaultValue](const auto& view) -> FVector4 {
+      [&UV, &DefaultValue](const auto& view) -> FVector4 {
         if (view.status() != PropertyTexturePropertyViewStatus::Valid) {
           return DefaultValue;
         }
         auto maybeValue = view.get(UV.X, UV.Y);
-        if (maybeValue) {
-          auto value = *maybeValue;
-          return CesiumMetadataConversions<FVector4, decltype(value)>::convert(
-              value,
-              DefaultValue);
+        if (!maybeValue) {
+          return DefaultValue;
         }
-        return DefaultValue;
+        auto value = *maybeValue;
+        if constexpr (IsMetadataString<decltype(value)>::value) {
+          return UnrealMetadataConversions::toVector(value, DefaultValue);
+        } else {
+          auto maybeVec4 = CesiumGltf::
+              MetadataConversions<glm::dvec4, decltype(value)>::convert(value);
+          return maybeVec4 ? UnrealMetadataConversions::toVector4(*maybeVec4)
+                           : DefaultValue;
+        }
       });
 }
 
